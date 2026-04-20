@@ -32,6 +32,8 @@ from legged_lab.envs import ManagerBasedAnimationEnv
 ##
 if args_cli.robot == "g1_29dof":
     from legged_lab.tasks.locomotion.animation.config.g1.g1_anim_env_cfg import G1AnimEnvCfg as AnimEnvCfg
+elif args_cli.robot == "v1":
+    from legged_lab.tasks.locomotion.animation.config.v1.v1_anim_env_cfg import V1AnimEnvCfg as AnimEnvCfg
 else:
     raise ValueError(f"Robot {args_cli.robot} not supported.")
 

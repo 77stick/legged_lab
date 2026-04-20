@@ -25,9 +25,19 @@ Output Legged Lab Format:
 """
 
 import enum
+import io
 import numpy as np
 import pickle
 import torch
+
+
+class _NumpyCoreUnpickler(pickle.Unpickler):
+    """Handle numpy 2.x pickles (numpy._core) in numpy 1.x environments."""
+
+    def find_class(self, module: str, name: str):
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core", 1)
+        return super().find_class(module, name)
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -52,7 +62,7 @@ def extract_gmr_data(
     end_frame: int = -1,
 ):
     with open(gmr_file_path, "rb") as f:
-        gmr_data = pickle.load(f)
+        gmr_data = _NumpyCoreUnpickler(f).load()
 
     # Extract data from GMR format
     fps = gmr_data["fps"]

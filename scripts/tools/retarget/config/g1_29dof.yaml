@@ -61,7 +61,6 @@ lab_dof_names:
   - left_wrist_yaw_joint
   - right_wrist_yaw_joint
 
-
 # Names of the key bodies that will be used in further processing
 # Must match the names in the lab robot model
 # Order matters and should align with that used in observation

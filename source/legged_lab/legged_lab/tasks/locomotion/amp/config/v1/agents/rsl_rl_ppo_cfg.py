@@ -50,8 +50,10 @@ class V1RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
                 hidden_dims=[1024, 512],
                 activation="elu",
                 # Larger => stronger imitation / style signal per step (see rsl_rl.modules.amp.predict_style_reward).
-                style_reward_scale=8.0,
-                task_style_lerp=0.4,
+                # Lowered from 8.0 -> 7.0 to slightly relax style magnitude while keeping the discriminator stable.
+                style_reward_scale=7.0,
+                # Raised from 0.4 -> 0.55 so task has a slight majority in the final reward (was 40% task / 60% style).
+                task_style_lerp=0.55,
             ),
             loss_type="LSGAN",
         ),

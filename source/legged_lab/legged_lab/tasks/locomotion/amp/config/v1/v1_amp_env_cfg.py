@@ -25,11 +25,11 @@ class V1AmpRewards:
     # -- task
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=1.15,
+        weight=1.5,
         params={"command_name": "base_velocity", "std": math.sqrt(0.36)},
     )
     track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        func=mdp.track_ang_vel_z_exp, weight=1.3, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     )
 
     # -- penalties
@@ -52,6 +52,16 @@ class V1AmpRewards:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"])},
     )
 
+    # Discriminator only observes toe positions (KEY_BODY_NAMES), so it cannot see the heel-ground
+    # angle when the policy walks on tiptoe. Penalize ankle pitch deviation from neutral to directly
+    # discourage foot pitch in both swing (light) and stance (heavier, stacked with feet_orientation_l2).
+    # ankle_roll is intentionally excluded to preserve side-step mobility.
+    joint_deviation_ankle_pitch = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.3,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_ankle_pitch_joint"])},
+    )
+
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
         weight=0.35,
@@ -72,9 +82,13 @@ class V1AmpRewards:
     # Penalize foot not parallel to ground while in contact. Directly discourages
     # heel-only / toe-only contact (the "tiptoe" pattern) on V1's ankle_roll body,
     # since the full foot collision plate is rigidly attached to ankle_roll.
+    # Raised from -0.5 -> -3.0: this is the ONLY reward that directly observes foot tilt.
+    # AMP's discriminator only sees toe positions so it is blind to heel-ground angle.
+    # With weight -3.0, a 20 deg heel lift costs ~-0.35/foot/step = -0.7/step for both feet,
+    # which dominates any tiptoe-style gain style reward can give.
     feet_orientation_l2 = RewTerm(
         func=mdp.feet_orientation_l2,
-        weight=-0.5,
+        weight=-3.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll"),
@@ -106,21 +120,21 @@ class V1AmpEnvCfg(LocomotionAmpEnvCfg):
         )
         # Weights follow manifest "priority" per category (shared across the 3 seeds s00/s01/s02).
         _category_priority = {
-            "stand_idle": 1.5,
+            "stand_idle": 1.0,
             "stand_shift_weight": 1.0,
-            "walk_forward_very_slow": 1.5,
-            "walk_forward_slow": 1.7,
-            "walk_forward_mid": 1.7,
-            "walk_forward_normal": 1.7,
-            "walk_backward_slow": 1.2,
-            "side_step_left_slow": 1.2,
-            "side_step_right_slow": 1.2,
-            "turn_left_in_place": 1.2,
-            "turn_right_in_place": 1.2,
-            "walk_arc_left_slow": 1.5,
-            "walk_arc_right_slow": 1.5,
-            "walk_arc_left_normal": 1.2,
-            "walk_arc_right_normal": 1.2,
+            "walk_forward_very_slow": 1.0,
+            "walk_forward_slow": 1.2,
+            "walk_forward_mid": 1.2,
+            "walk_forward_normal": 1.2,
+            "walk_backward_slow": 1.0,
+            "side_step_left_slow": 1.0,
+            "side_step_right_slow": 1.0,
+            "turn_left_in_place": 1.0,
+            "turn_right_in_place": 1.0,
+            "walk_arc_left_slow": 1.0,
+            "walk_arc_right_slow": 1.0,
+            "walk_arc_left_normal": 1.0,
+            "walk_arc_right_normal": 1.0,
             "walk_diag_left_slow": 1.0,
             "walk_diag_right_slow": 1.0,
         }

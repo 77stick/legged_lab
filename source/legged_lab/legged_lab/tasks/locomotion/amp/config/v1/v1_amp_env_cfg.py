@@ -98,27 +98,36 @@ class V1AmpEnvCfg(LocomotionAmpEnvCfg):
         # ------------------------------------------------------
         # motion data
         # ------------------------------------------------------
+        # New Kimodo-generated + GMR-retargeted dataset (17 categories x 3 seeds = 51 clips).
+        # Each clip already carries cmd_lin_vel_x/y, cmd_ang_vel_z, category and priority metadata
+        # inside the .pkl (baked in by dataset_retarget.py --manifest).
         self.motion_data.motion_dataset.motion_data_dir = os.path.join(
-            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_reground"
+            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_dataset"
         )
-        # Keys must match .pkl stems under data/MotionData/v1/amp_reground (see MotionDataTerm).
+        # Weights follow manifest "priority" per category (shared across the 3 seeds s00/s01/s02).
+        _category_priority = {
+            "stand_idle": 1.5,
+            "stand_shift_weight": 1.0,
+            "walk_forward_very_slow": 1.5,
+            "walk_forward_slow": 1.7,
+            "walk_forward_mid": 1.7,
+            "walk_forward_normal": 1.7,
+            "walk_backward_slow": 1.2,
+            "side_step_left_slow": 1.2,
+            "side_step_right_slow": 1.2,
+            "turn_left_in_place": 1.2,
+            "turn_right_in_place": 1.2,
+            "walk_arc_left_slow": 1.5,
+            "walk_arc_right_slow": 1.5,
+            "walk_arc_left_normal": 1.2,
+            "walk_arc_right_normal": 1.2,
+            "walk_diag_left_slow": 1.0,
+            "walk_diag_right_slow": 1.0,
+        }
         self.motion_data.motion_dataset.motion_data_weights = {
-            "B10_-__Walk_turn_left_45_stageii": 1.0,
-            "B11_-__Walk_turn_left_135_stageii": 1.0,
-            "B13_-__Walk_turn_right_90_stageii": 1.0,
-            "B14_-__Walk_turn_right_45_t2_stageii": 1.0,
-            "B15_-__Walk_turn_around_stageii": 1.0,
-            "B22_-__side_step_left_stageii": 1.0,
-            "B23_-__side_step_right_stageii": 1.0,
-            "B4_-_Stand_to_Walk_backwards_stageii": 1.0,
-            "B9_-__Walk_turn_left_90_stageii": 1.0,
-            "Walk_B10_-_Walk_turn_left_45_stageii": 1.0,
-            "Walk_B13_-_Walk_turn_right_45_stageii": 1.0,
-            "Walk_B15_-_Walk_turn_around_stageii": 1.0,
-            "Walk_B16_-_Walk_turn_change_stageii": 1.0,
-            "Walk_B22_-_Side_step_left_stageii": 1.0,
-            "Walk_B23_-_Side_step_right_stageii": 1.0,
-            "Walk_B4_-_Stand_to_Walk_Back_stageii": 1.0,
+            f"{category}_s{seed:02d}": weight
+            for category, weight in _category_priority.items()
+            for seed in range(3)
         }
 
         # ------------------------------------------------------
@@ -160,9 +169,12 @@ class V1AmpEnvCfg(LocomotionAmpEnvCfg):
         # ------------------------------------------------------
         # Commands
         # ------------------------------------------------------
+        # Aligned with manifest.command_ranges of the Kimodo dataset: lin_vel_x ∈ [-0.5, 1.0],
+        # lin_vel_y ∈ [-0.5, 0.5], ang_vel_z ∈ [-1.0, 1.0] (reference side_step and in-place-turn
+        # clips now exist in amp_dataset/ to cover the widened y / yaw ranges).
         self.commands.base_velocity.ranges.lin_vel_x = (-0.5, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.25, 0.25)
-        self.commands.base_velocity.ranges.ang_vel_z = (-0.75, 0.75)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.ranges.heading = (-math.pi, math.pi)
         # Disable heading setpoint: with heading_command + full heading range the policy fights
         # "go straight" vs "face random yaw", which often looks like one-step wobble / no sustained vx.

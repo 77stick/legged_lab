@@ -25,28 +25,35 @@ class V1AnimEnvCfg(AnimationEnvCfg):
             collision_enabled=False
         )
 
-        # Playback source: the freshly re-retargeted V1 motions.
+        # Playback source: Kimodo-generated + GMR-retargeted V1 motions
+        # (17 categories x 3 seeds = 51 clips, flat layout).
         self.motion_data.motion_dataset.motion_data_dir = os.path.join(
-            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_reground"
+            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_dataset"
         )
         # Keys must match .pkl stems under the motion_data_dir above.
+        _category_priority = {
+            "stand_idle": 1.5,
+            "stand_shift_weight": 1.0,
+            "walk_forward_very_slow": 1.5,
+            "walk_forward_slow": 2.0,
+            "walk_forward_mid": 2.0,
+            "walk_forward_normal": 2.0,
+            "walk_backward_slow": 1.2,
+            "side_step_left_slow": 1.2,
+            "side_step_right_slow": 1.2,
+            "turn_left_in_place": 1.2,
+            "turn_right_in_place": 1.2,
+            "walk_arc_left_slow": 1.5,
+            "walk_arc_right_slow": 1.5,
+            "walk_arc_left_normal": 1.2,
+            "walk_arc_right_normal": 1.2,
+            "walk_diag_left_slow": 1.0,
+            "walk_diag_right_slow": 1.0,
+        }
         self.motion_data.motion_dataset.motion_data_weights = {
-            "B10_-__Walk_turn_left_45_stageii": 1.0,
-            "B11_-__Walk_turn_left_135_stageii": 1.0,
-            "B13_-__Walk_turn_right_90_stageii": 1.0,
-            "B14_-__Walk_turn_right_45_t2_stageii": 1.0,
-            "B15_-__Walk_turn_around_stageii": 1.0,
-            "B22_-__side_step_left_stageii": 1.0,
-            "B23_-__side_step_right_stageii": 1.0,
-            "B4_-_Stand_to_Walk_backwards_stageii": 1.0,
-            "B9_-__Walk_turn_left_90_stageii": 1.0,
-            "Walk_B10_-_Walk_turn_left_45_stageii": 1.0,
-            "Walk_B13_-_Walk_turn_right_45_stageii": 1.0,
-            "Walk_B15_-_Walk_turn_around_stageii": 1.0,
-            "Walk_B16_-_Walk_turn_change_stageii": 1.0,
-            "Walk_B22_-_Side_step_left_stageii": 1.0,
-            "Walk_B23_-_Side_step_right_stageii": 1.0,
-            "Walk_B4_-_Stand_to_Walk_Back_stageii": 1.0,
+            f"{category}_s{seed:02d}": weight
+            for category, weight in _category_priority.items()
+            for seed in range(3)
         }
 
         self.animation.animation.random_initialize = True

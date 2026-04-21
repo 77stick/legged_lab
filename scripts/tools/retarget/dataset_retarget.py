@@ -19,6 +19,7 @@ This script intentionally does NOT support start/end frame clipping; it converts
 """
 
 import argparse
+import json
 import pickle
 import warnings
 import yaml
@@ -58,6 +59,16 @@ parser.add_argument(
     choices=["wrap", "clamp"],
     default="clamp",
     help="Loop mode for motion (default: clamp)",
+)
+parser.add_argument(
+    "--manifest",
+    type=str,
+    default=None,
+    help=(
+        "Optional manifest.json path. When provided, the script reads the clip list from the manifest, "
+        "writes flat output files (named by clip 'name'), and bakes per-clip metadata "
+        "(cmd_lin_vel_x/y, cmd_ang_vel_z, category, priority) into each output pickle."
+    ),
 )
 
 AppLauncher.add_app_launcher_args(parser)
@@ -99,6 +110,35 @@ def list_input_files(input_dir: str):
     return files
 
 
+def list_input_files_from_manifest(input_dir: str, manifest_path: str):
+    """Read clip list from a manifest.json and resolve .pkl paths under input_dir.
+
+    Returns a list of (Path, output_name, clip_dict) tuples, one per clip.
+    The clip ``path`` field in the manifest (originally .npz) is remapped to .pkl.
+    """
+    in_root = Path(input_dir)
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    clips = manifest.get("clips", [])
+    if not clips:
+        raise ValueError(f"Manifest has no 'clips': {manifest_path}")
+
+    resolved: list[tuple[Path, str, dict]] = []
+    missing: list[str] = []
+    for clip in clips:
+        rel = Path(clip["path"]).with_suffix(".pkl")
+        pkl_path = in_root / rel
+        if not pkl_path.exists():
+            missing.append(str(rel))
+            continue
+        out_name = f"{clip['name']}.pkl"
+        resolved.append((pkl_path, out_name, clip))
+
+    if missing:
+        warnings.warn(f"{len(missing)} manifest clips missing .pkl under {in_root}: {missing[:5]}...")
+    return resolved
+
+
 def main():
     # read config
     with open(args_cli.config_file) as f:
@@ -110,19 +150,30 @@ def main():
 
     loop_mode = LoopMode.CLAMP if args_cli.loop == "clamp" else LoopMode.WRAP
 
-    input_files = list_input_files(args_cli.input_dir)
-    if len(input_files) == 0:
-        print(f"No .pkl files found in input directory: {args_cli.input_dir}")
-        return
+    if args_cli.manifest:
+        resolved = list_input_files_from_manifest(args_cli.input_dir, args_cli.manifest)
+        if len(resolved) == 0:
+            print(f"No clips resolved from manifest: {args_cli.manifest}")
+            return
+        input_files = [p for p, _, _ in resolved]
+        output_names = [name for _, name, _ in resolved]
+        clip_meta = [meta for _, _, meta in resolved]
+        print(f"Found {len(input_files)} manifest clips under {args_cli.input_dir} (flat output).")
+    else:
+        input_files = list_input_files(args_cli.input_dir)
+        if len(input_files) == 0:
+            print(f"No .pkl files found in input directory: {args_cli.input_dir}")
+            return
+        output_names = [p.name for p in input_files]
+        clip_meta = [None] * len(input_files)
+        print(f"Found {len(input_files)} files to convert.")
 
     Path(args_cli.output_dir).mkdir(parents=True, exist_ok=True)
 
     # load and convert all gmr files (entire motion)
     motion_data_dicts = []
-    input_names = []
     fps_values = []
 
-    print(f"Found {len(input_files)} files to convert.")
     for p in input_files:
         print(f"Loading and converting: {p.name}")
         motion = extract_gmr_data(
@@ -134,7 +185,6 @@ def main():
             end_frame=-1,
         )
         motion_data_dicts.append(motion)
-        input_names.append(p.name)
         fps_values.append(motion["fps"])
 
     # check fps consistency
@@ -164,7 +214,14 @@ def main():
 
     # save outputs
     print("Saving converted motions to output directory...")
-    for name, motion in zip(input_names, motion_data_dicts):
+    for name, motion, meta in zip(output_names, motion_data_dicts, clip_meta):
+        if meta is not None:
+            motion["cmd_lin_vel_x"] = float(meta.get("cmd_lin_vel_x", 0.0))
+            motion["cmd_lin_vel_y"] = float(meta.get("cmd_lin_vel_y", 0.0))
+            motion["cmd_ang_vel_z"] = float(meta.get("cmd_ang_vel_z", 0.0))
+            motion["category"] = meta.get("category", "")
+            motion["priority"] = float(meta.get("priority", 1.0))
+            motion["clip_name"] = meta.get("name", Path(name).stem)
         out_path = Path(args_cli.output_dir) / name
         with open(out_path, "wb") as f:
             pickle.dump(motion, f)

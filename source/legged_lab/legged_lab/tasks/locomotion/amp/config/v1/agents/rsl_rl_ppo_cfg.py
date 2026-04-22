@@ -1,7 +1,8 @@
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlSymmetryCfg
 
 from legged_lab.rsl_rl import RslRlAmpCfg, RslRlPpoAmpAlgorithmCfg
+from legged_lab.tasks.locomotion.amp.mdp.symmetry import v1 as v1_symmetry
 
 
 @configclass
@@ -49,12 +50,22 @@ class V1RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
             amp_discriminator=RslRlAmpCfg.AMPDiscriminatorCfg(
                 hidden_dims=[1024, 512],
                 activation="elu",
-                # Larger => stronger imitation / style signal per step (see rsl_rl.modules.amp.predict_style_reward).
-                # Lowered from 8.0 -> 7.0 to slightly relax style magnitude while keeping the discriminator stable.
-                style_reward_scale=7.0,
-                # Raised from 0.4 -> 0.55 so task has a slight majority in the final reward (was 40% task / 60% style).
-                task_style_lerp=0.55,
+                # Aligned with qingyun_z1_A_rev_1_0 AMP config: style_reward_scale=5.0,
+                # task_style_lerp=0.4 (40% task / 60% style after the style scaling).
+                # Lower scale (vs rsl_rl default 8.0) keeps style magnitude tame so task
+                # rewards still drive the gradient meaningfully.
+                style_reward_scale=5.0,
+                task_style_lerp=0.4,
             ),
             loss_type="LSGAN",
+        ),
+        # Left-right symmetry augmentation + mirror loss, aligned with G1 / qingyun AMP.
+        # V1 is fully paired lower-body (6 joints per side), so both data augmentation
+        # and the 0.1 mirror-loss coefficient are safe defaults.
+        symmetry_cfg=RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            data_augmentation_func=v1_symmetry.compute_symmetric_states,
+            use_mirror_loss=True,
+            mirror_loss_coeff=0.1,
         ),
     )

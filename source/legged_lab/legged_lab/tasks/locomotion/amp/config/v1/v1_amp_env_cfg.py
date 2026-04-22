@@ -11,6 +11,8 @@ from legged_lab.assets.v1 import V1_IMPLICIT_CFG
 from legged_lab.tasks.locomotion.amp.amp_env_cfg import LocomotionAmpEnvCfg
 
 KEY_BODY_NAMES = [
+    "left_ankle_roll",
+    "right_ankle_roll",
     "left_toe",
     "right_toe",
 ]
@@ -23,22 +25,26 @@ class V1AmpRewards:
     """Reward terms for the MDP."""
 
     # -- task
+    # Aligned with qingyun_z1_A_rev_1_0 AMP config: weight 1.0 + std=sqrt(0.25). With the
+    # ankle_roll bodies now in KEY_BODY_NAMES, AMP sees foot orientation directly so the
+    # task weights no longer need to be boosted to compete with the style reward.
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=1.5,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.36)},
+        weight=1.0,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=1.3, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        func=mdp.track_ang_vel_z_exp,
+        weight=1.0,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
 
     # -- penalties
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.2)
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.3)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-6)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-1.0e-7)
-    # Match G1 AMP: -0.05 over-penalizes action changes on this lighter robot and hurts corrective balance.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
     dof_pos_limits = RewTerm(
         func=mdp.joint_pos_limits,
@@ -52,19 +58,12 @@ class V1AmpRewards:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"])},
     )
 
-    # Discriminator only observes toe positions (KEY_BODY_NAMES), so it cannot see the heel-ground
-    # angle when the policy walks on tiptoe. Penalize ankle pitch deviation from neutral to directly
-    # discourage foot pitch in both swing (light) and stance (heavier, stacked with feet_orientation_l2).
-    # ankle_roll is intentionally excluded to preserve side-step mobility.
-    joint_deviation_ankle_pitch = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.3,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_ankle_pitch_joint"])},
-    )
+    # NOTE: qingyun's config adds joint_deviation_arms and joint_deviation_waist here;
+    # V1 is a lower-body-only humanoid so those joints do not exist and are omitted.
 
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
-        weight=0.35,
+        weight=0.5,
         params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll"),
@@ -73,27 +72,17 @@ class V1AmpRewards:
     )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.15,
+        weight=-0.1,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll"),
         },
     )
-    # Penalize foot not parallel to ground while in contact. Directly discourages
-    # heel-only / toe-only contact (the "tiptoe" pattern) on V1's ankle_roll body,
-    # since the full foot collision plate is rigidly attached to ankle_roll.
-    # Raised from -0.5 -> -3.0: this is the ONLY reward that directly observes foot tilt.
-    # AMP's discriminator only sees toe positions so it is blind to heel-ground angle.
-    # With weight -3.0, a 20 deg heel lift costs ~-0.35/foot/step = -0.7/step for both feet,
-    # which dominates any tiptoe-style gain style reward can give.
-    feet_orientation_l2 = RewTerm(
-        func=mdp.feet_orientation_l2,
-        weight=-3.0,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll"),
-        },
-    )
+
+    # NOTE: feet_orientation_l2 and joint_deviation_ankle_pitch were removed when aligning
+    # with qingyun. KEY_BODY_NAMES now includes left/right_ankle_roll, so AMP's discriminator
+    # can observe foot orientation through the demo reference and no longer has a blind spot
+    # to the tiptoe pattern. If tiptoe re-emerges in TensorBoard, re-enable these terms.
 
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
 
@@ -194,7 +183,7 @@ class V1AmpEnvCfg(LocomotionAmpEnvCfg):
         # "go straight" vs "face random yaw", which often looks like one-step wobble / no sustained vx.
         self.commands.base_velocity.heading_command = False
         # Slightly gentler joint deltas than default 0.25 for this 12-DoF humanoid.
-        self.actions.joint_pos.scale = 0.2
+        self.actions.joint_pos.scale = 0.25
 
         # ------------------------------------------------------
         # Curriculum

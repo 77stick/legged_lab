@@ -29,5 +29,7 @@ lab_dof_names:
 
 
 lab_key_body_names:
+  - left_ankle_roll
+  - right_ankle_roll
   - left_toe
   - right_toe

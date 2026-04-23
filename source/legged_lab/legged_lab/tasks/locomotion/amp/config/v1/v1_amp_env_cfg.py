@@ -101,36 +101,21 @@ class V1AmpEnvCfg(LocomotionAmpEnvCfg):
         # ------------------------------------------------------
         # motion data
         # ------------------------------------------------------
-        # New Kimodo-generated + GMR-retargeted dataset (17 categories x 3 seeds = 51 clips).
-        # Each clip already carries cmd_lin_vel_x/y, cmd_ang_vel_z, category and priority metadata
-        # inside the .pkl (baked in by dataset_retarget.py --manifest).
+        # Kimodo web-demo retargeted clips (50 fps, ~6 s each), converted via
+        # scripts/tools/retarget/dataset_retarget.py using scripts/tools/retarget/config/v1_12dof.yaml
+        # (4 key bodies: left/right_ankle_roll, left/right_toe).
         self.motion_data.motion_dataset.motion_data_dir = os.path.join(
-            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_dataset"
+            LEGGED_LAB_ROOT_DIR, "data", "MotionData", "v1", "amp_demo_web_kimodo_lab"
         )
-        # Weights follow manifest "priority" per category (shared across the 3 seeds s00/s01/s02).
-        _category_priority = {
-            "stand_idle": 1.0,
-            "stand_shift_weight": 1.0,
-            "walk_forward_very_slow": 1.0,
-            "walk_forward_slow": 1.2,
-            "walk_forward_mid": 1.2,
-            "walk_forward_normal": 1.2,
-            "walk_backward_slow": 1.0,
+        self.motion_data.motion_dataset.motion_data_weights = {
             "side_step_left_slow": 1.0,
             "side_step_right_slow": 1.0,
-            "turn_left_in_place": 1.0,
-            "turn_right_in_place": 1.0,
             "walk_arc_left_slow": 1.0,
             "walk_arc_right_slow": 1.0,
-            "walk_arc_left_normal": 1.0,
-            "walk_arc_right_normal": 1.0,
-            "walk_diag_left_slow": 1.0,
-            "walk_diag_right_slow": 1.0,
-        }
-        self.motion_data.motion_dataset.motion_data_weights = {
-            f"{category}_s{seed:02d}": weight
-            for category, weight in _category_priority.items()
-            for seed in range(3)
+            "walk_backward_fast": 1.0,
+            "walk_backward_slow": 1.0,
+            "walk_forward_fast": 1.0,
+            "walk_forward_slow": 1.0,
         }
 
         # ------------------------------------------------------
